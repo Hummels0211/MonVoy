@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Log v36.0 (Vibrant Social)</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { margin: 0; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; }
+        #map { height: 100vh; width: 100%; z-index: 0; background: #e2e8f0; }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            border-right: 1px solid #f1f5f9;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.02);
+        }
+
+        @keyframes dash-anim { to { stroke-dashoffset: -20; } }
+        .flight-path { animation: dash-anim 1s linear infinite; }
+
+        .flat-input {
+            background: #f8fafc; border: 1px solid #e2e8f0; color: #334155;
+            transition: all 0.2s ease;
+        }
+        .flat-input:focus { background: white; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); outline: none; }
+        
+        .photo-frame { 
+            width: 100%; height: 200px; background: #f8fafc; overflow: hidden; 
+            position: relative; border-radius: 16px; display: none; cursor: grab; 
+            touch-action: none; border: 2px dashed #e2e8f0; 
+        }
+        .photo-frame:active { cursor: grabbing; border-color: #6366f1; }
+        .photo-frame img { position: absolute; transform-origin: top left; user-select: none; pointer-events: none; transition: filter 0.3s; }
+        
+        .drop-zone {
+            border: 2px dashed #cbd5e1; border-radius: 16px;
+            background: #f8fafc; transition: all 0.2s;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100px; color: #64748b; cursor: pointer;
+        }
+        .drop-zone:hover { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
+
+        .thumb-img { width: 100%; height: 140px; object-fit: cover; border-radius: 12px; margin-top: 12px; border: 1px solid #f1f5f9; }
+        .tag-badge { font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.02em; display: inline-block; }
+
+        .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); border: none; }
+        .leaflet-popup-content { margin: 0 !important; width: 300px !important; }
+        .leaflet-popup-tip { background: white; }
+        .leaflet-container a.leaflet-popup-close-button { display: none; }
+        
+        .modal-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); z-index: 3000; display: none; align-items: center; justify-content: center; }
+
+        /* Report Styles */
+        #reportModal { display: none; position: fixed; inset: 0; z-index: 5000; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; overflow-y: auto; padding: 20px; }
+        #reportModal.active { display: flex; opacity: 1; }
+        
+        .report-card {
+            background: white; border-radius: 32px; padding: 48px; 
+            text-align: center; max-width: 500px; width: 100%;
+            transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.15); border: 1px solid #f1f5f9; color: #1e293b;
+            position: relative;
+        }
+        #reportModal.active .report-card { transform: scale(1); }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 32px 0; }
+        .stat-box { background: #f8fafc; padding: 24px; border-radius: 24px; border: 1px solid #f1f5f9; }
+        .stat-number { font-size: 2.2rem; font-weight: 800; color: #0f172a; letter-spacing: -1px; line-height: 1; }
+        .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b; margin-top: 8px; letter-spacing: 0.5px; }
+
+        /* --- NEW VIBRANT PERSONA BADGES --- */
+        .persona-badge { display: inline-block; color: white; padding: 8px 24px; border-radius: 100px; font-weight: 800; font-size: 1rem; margin-bottom: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); text-transform: uppercase; letter-spacing: 1px; }
+        .persona-weekender { background: linear-gradient(135deg, #10b981 0%, #059669 100%); } /* Emerald */
+        .persona-explorer { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); } /* Blue */
+        .persona-globetrotter { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); } /* Purple */
+        .persona-jetsetter { background: linear-gradient(135deg, #f59e0b 0%, #b91c1c 100%); } /* Orange/Red */
+        
+        .flag-collection { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 24px 0; }
+        .flag-icon { height: 28px; width: auto; border-radius: 4px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #f1f5f9; transition: transform 0.2s; }
+        .flag-icon:hover { transform: scale(1.2); }
+
+        .photo-reel { display: flex; gap: 12px; overflow-x: auto; padding: 10px 0; margin-bottom: 24px; justify-content: center; }
+        .photo-reel img { width: 72px; height: 72px; object-fit: cover; border-radius: 16px; border: 3px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        
+        /* BUTTONS */
+        .btn-gradient { 
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white; border: none; padding: 14px 24px; border-radius: 14px; 
+            font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all 0.3s; 
+            width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; 
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.5); filter: brightness(110%); }
+        
+        .btn-icon-only {
+            width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; cursor: pointer; transition: all 0.2s; border: 1px solid #e2e8f0; background: white; color: #64748b;
+        }
+        .btn-icon-only:hover { background: #f1f5f9; color: #334155; transform: translateY(-2px); }
+        .btn-whatsapp:hover { color: #25D366; border-color: #25D366; background: #f0fdf4; }
+        /* New Instagram Button Style */
+        .btn-instagram:hover { color: #E1306C; border-color: #E1306C; background: #fff0f5; }
+
+        .btn-secondary { background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 12px 20px; border-radius: 14px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
+        .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+
+        .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
+        .filter-btn { flex: 0 0 auto; padding: 6px 14px; border-radius: 100px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid #e2e8f0; background: white; color: #64748b; transition: all 0.2s; }
+        .filter-btn.active { background: #0f172a; color: white; border-color: #0f172a; }
+    </style>
+</head>
+<body class="flex h-screen bg-slate-50 font-sans text-slate-800">
+
+    <div class="absolute top-5 right-5 z-[1000] bg-white p-1.5 rounded-full shadow-xl border border-slate-100 flex gap-1">
+        <button onclick="changeTheme('voyager')" class="w-9 h-9 rounded-full bg-slate-100 text-slate-900 flex items-center justify-center hover:bg-slate-200" title="Modern"><i class="fa-solid fa-map"></i></button>
+        <button onclick="changeTheme('positron')" class="w-9 h-9 rounded-full bg-white text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-slate-600" title="Clean"><i class="fa-solid fa-paper-plane"></i></button>
+        <button onclick="changeTheme('dark')" class="w-9 h-9 rounded-full bg-white text-slate-400 flex items-center justify-center hover:bg-slate-900 hover:text-white" title="Dark"><i class="fa-solid fa-moon"></i></button>
+    </div>
+
+    <div id="reportModal">
+        <div class="report-card" id="reportCardContent">
+            <div class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">2025 Wrapped</div>
+            <h1 class="text-3xl font-extrabold mb-6 text-slate-900">Your Journey</h1>
+            <div id="repPersona" class="persona-badge">The Explorer</div>
+            
+            <div id="repPhotos" class="photo-reel"></div>
+
+            <div class="bg-slate-50 rounded-2xl p-6 mb-6">
+                <div class="text-xs uppercase text-slate-400 font-bold mb-3 tracking-wider">Destinations</div>
+                <div id="repFlags" class="flag-collection"></div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-box"><div class="stat-number" id="repDist">0</div><div class="stat-label">Km Travelled</div></div>
+                <div class="stat-box"><div class="stat-number" id="repCountries">0</div><div class="stat-label">Countries</div></div>
+                <div class="stat-box"><div class="stat-number" id="repCities">0</div><div class="stat-label">Cities</div></div>
+                <div class="stat-box"><div class="text-2xl font-bold text-slate-900 mt-1" id="repSeason">Winter</div><div class="stat-label">Peak Season</div></div>
+            </div>
+
+            <div class="text-left p-4 rounded-xl border border-slate-100 flex justify-between items-center mb-8">
+                <div><div class="text-[10px] uppercase text-slate-400 font-bold">Furthest Point</div><div class="text-lg font-bold text-slate-900" id="repFarName">...</div></div>
+                <div class="text-slate-600 font-bold text-sm bg-slate-100 px-3 py-1 rounded-full" id="repFarDist">0 km</div>
+            </div>
+
+            <div class="flex gap-3 mb-4">
+                <button onclick="shareImage()" class="btn-gradient" style="flex:2;">
+                    <i class="fa-solid fa-share-nodes"></i> Share
+                </button>
+                <button onclick="shareWhatsApp()" class="btn-icon-only btn-whatsapp" title="WhatsApp">
+                    <i class="fa-brands fa-whatsapp"></i>
+                </button>
+                <button onclick="shareInstagram()" class="btn-icon-only btn-instagram" title="Get for Instagram">
+                    <i class="fa-brands fa-instagram"></i>
+                </button>
+                <button onclick="downloadImage()" class="btn-icon-only" title="Download PNG">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </div>
+            
+            <button onclick="closeReport()" class="btn-secondary w-full text-xs uppercase tracking-widest">Close</button>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal-bg">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-96 max-h-[90vh] overflow-y-auto relative">
+            <button onclick="closeEditModal()" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600"><i class="fa-solid fa-times text-xl"></i></button>
+            <h2 class="text-xl font-bold mb-6 text-slate-900">Edit Memory</h2>
+            
+            <div class="space-y-4 mb-6">
+                <div><label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Location</label><input type="text" id="editName" class="w-full p-3 rounded-xl text-sm flat-input"></div>
+                <div><label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Date</label><input type="date" id="editDate" class="w-full p-3 rounded-xl text-sm flat-input"></div>
+                <div><label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Tag</label><input type="text" id="editTag" class="w-full p-3 rounded-xl text-sm flat-input font-bold text-indigo-600"></div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-4 mb-6">
+                <label class="text-xs font-bold text-slate-400 uppercase mb-2 block">Photo</label>
+                <div id="editDropZone" class="drop-zone" style="height: 80px;" onclick="document.getElementById('editFileInput').click()"><span class="text-xs font-bold">Replace Photo</span><input type="file" id="editFileInput" class="hidden" accept="image/*" onchange="loadEditFile(this.files[0])"></div>
+                <div id="editPhotoFrame" class="photo-frame edit-photo-frame" style="height: 180px; display:none;"><img id="editPreviewImage" src="" alt="Edit Preview"></div>
+            </div>
+
+            <button onclick="saveEdit()" class="btn-gradient">Save Changes</button>
+        </div>
+    </div>
+
+    <div class="sidebar w-full md:w-[400px] flex flex-col h-full shadow-2xl z-20 absolute md:relative transform transition-transform duration-300" id="sidebarPanel">
+        <div class="p-6 bg-white/80 border-b border-slate-100 flex justify-between items-center">
+            <div><h1 class="text-xl font-extrabold text-slate-900 tracking-tight"><i class="fa-solid fa-paper-plane text-indigo-500 mr-2"></i>MonVoy</h1><p class="text-xs font-bold text-slate-400 mt-0.5">My Personal Travel Log</p></div>
+            <div class="flex gap-2 text-slate-400"><button onclick="exportData()" class="hover:text-indigo-600 p-2"><i class="fa-solid fa-download"></i></button><label class="cursor-pointer hover:text-indigo-600 p-2"><i class="fa-solid fa-upload"></i><input type="file" id="importFile" class="hidden" onchange="importData(this)"></label></div>
+        </div>
+        
+        <div class="p-6 space-y-4 overflow-y-auto bg-slate-50/50">
+            <div class="relative group">
+                <input type="text" id="searchInput" placeholder="Search a city..." autocomplete="off" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm flat-input font-medium" oninput="handleInput(this.value)">
+                <i class="fa-solid fa-search absolute left-3.5 top-3.5 text-slate-400"></i>
+                <div class="loader" id="searchLoader"></div>
+                <ul id="searchResults" class="hidden absolute top-full left-0 w-full bg-white border border-slate-100 rounded-xl shadow-xl mt-2 max-h-60 overflow-y-auto z-50 text-slate-600 p-1"></ul>
+            </div>
+            
+            <div id="countryStatus" class="hidden text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-check"></i> <span id="detectedCountryName"></span></div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <input type="date" id="inputDate" class="w-full p-3 rounded-xl text-sm flat-input text-slate-600">
+                <input type="text" id="inputTag" placeholder="Trip Tag" class="w-full p-3 rounded-xl text-sm flat-input font-bold text-indigo-600">
+            </div>
+
+            <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+                <i class="fa-solid fa-image text-2xl mb-2 text-slate-300"></i><span class="text-xs font-bold text-slate-400">Add Photo</span>
+                <input type="file" id="fileInput" class="hidden" accept="image/*" onchange="loadFile(this.files[0])">
+            </div>
+            
+            <div id="photoFrame" class="photo-frame"><img id="previewImage" src="" alt="Preview"><div class="absolute bottom-3 left-0 w-full text-center pointer-events-none"><span class="bg-white/90 text-slate-600 text-[10px] px-3 py-1 rounded-full font-bold shadow-sm">Drag to Crop</span></div></div>
+
+            <div id="filterToolbar" class="filter-bar hidden">
+                <div class="filter-btn active" onclick="applyFilter('none', this)">Normal</div>
+                <div class="filter-btn" onclick="applyFilter('grayscale(100%)', this)">B&W</div>
+                <div class="filter-btn" onclick="applyFilter('sepia(40%)', this)">Vintage</div>
+                <div class="filter-btn" onclick="applyFilter('saturate(1.3) contrast(1.1)', this)">Vivid</div>
+                <div class="filter-btn" onclick="applyFilter('hue-rotate(180deg) opacity(0.9)', this)">Cool</div>
+            </div>
+
+            <button onclick="addEntry()" class="btn-gradient shadow-lg shadow-indigo-200"><i class="fa-solid fa-plus"></i> Save Memory</button>
+        </div>
+
+        <div id="locationList" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white"></div>
+        
+        <div class="p-5 border-t border-slate-100 bg-white">
+            <div class="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-4"><span id="statCount">0 Memories</span><button onclick="clearAll()" class="hover:text-red-500">Reset All</button></div>
+            <button onclick="generateReport()" class="w-full py-3 rounded-xl border-2 border-slate-100 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 hover:border-slate-200 transition">View 2024 Wrapped</button>
+        </div>
+    </div>
+
+    <div id="map" class="flex-1 relative"><button onclick="document.getElementById('sidebarPanel').classList.toggle('-translate-x-full')" class="md:hidden absolute top-4 left-4 z-[999] bg-white p-3 rounded-full shadow-xl text-slate-600"><i class="fa-solid fa-bars"></i></button></div>
+
+    <script>
+        const map = L.map('map', { zoomControl: false, zoomSnap: 0.1, wheelPxPerZoomLevel: 120 }).setView([25, 0], 2.5);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        const tiles = { voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', positron: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', osm: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' };
+        let currentTileLayer = L.tileLayer(tiles.voyager, { attribution: '© OpenStreetMap' }).addTo(map);
+        let currentTheme = 'voyager';
+        function changeTheme(theme) { currentTheme = theme; map.removeLayer(currentTileLayer); currentTileLayer = L.tileLayer(tiles[theme], { attribution: '© OpenStreetMap' }).addTo(map); if(countriesLayer) countriesLayer.setStyle(styleCountry); }
+
+        let storedData = JSON.parse(localStorage.getItem('travelLogV36')) || [];
+        let countriesLayer = null, visitedCountryCodes = new Set(), visitedCountryNames = new Set(), countryNamesMap = {};
+        
+        map.createPane('countriesPane'); map.getPane('countriesPane').style.zIndex = 350;
+        map.createPane('linesPane'); map.getPane('linesPane').style.zIndex = 375;
+        map.createPane('markersPane'); map.getPane('markersPane').style.zIndex = 450;
+        let polylineLayer = L.layerGroup({pane: 'linesPane'}).addTo(map), markersGroup = L.featureGroup({pane: 'markersPane'}).addTo(map);
+        let currentSelection = null, currentSearchMarker = null, searchTimeout = null, editingId = null, currentFilter = 'none';
+        let editState = { panning: false, pointX: 0, pointY: 0, startX: 0, startY: 0 }, editTransform = { x: 0, y: 0, scale: 1 }, editPhotoChanged = false;
+
+        const tagPalette = [
+            { bg: '#eef2ff', text: '#4f46e5' }, { bg: '#ecfdf5', text: '#059669' }, { bg: '#fff1f2', text: '#e11d48' }, { bg: '#fff7ed', text: '#ea580c' },
+            { bg: '#f5f3ff', text: '#7c3aed' }, { bg: '#f0f9ff', text: '#0284c7' }, { bg: '#faf5ff', text: '#9333ea' }, { bg: '#fffbeb', text: '#d97706' }
+        ];
+        function getTagStyle(str) { let hash = 0; for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash); return tagPalette[Math.abs(hash) % tagPalette.length]; }
+
+        fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
+            .then(res => res.json()).then(data => { 
+                data.features.forEach(f => { if(f.properties.ISO_A2) countryNamesMap[f.properties.ISO_A2] = f.properties.NAME; });
+                countriesLayer = L.geoJson(data, { pane: 'countriesPane', style: styleCountry }).addTo(map); 
+                saveAndRender(); 
+            });
+
+        function styleCountry(feature) {
+            const props = feature.properties;
+            const isVisited = visitedCountryCodes.has(props.ISO_A2) || visitedCountryNames.has(props.NAME) || visitedCountryNames.has(props.NAME_EN) || visitedCountryNames.has(props.SOVEREIGNT);
+            const isDark = currentTheme === 'dark';
+            const fill = isVisited ? (isDark ? '#6366f1' : '#818cf8') : 'transparent';
+            const stroke = isVisited ? (isDark ? '#818cf8' : '#6366f1') : (isDark ? '#334155' : '#cbd5e1');
+            return { fillColor: fill, weight: isVisited ? 1.5 : 1, opacity: 1, color: stroke, fillOpacity: isVisited ? 0.3 : 0 };
+        }
+
+        // --- SHARING LOGIC ---
+        function getShareText() {
+            const km = document.getElementById('repDist').innerText;
+            const cnt = document.getElementById('repCountries').innerText;
+            const city = document.getElementById('repCities').innerText;
+            return `My Travel Wrapped: ${km}km travelled across ${cnt} countries and ${city} cities! 🌍✈️ #MonVoy`;
+        }
+
+        async function shareImage() {
+            const card = document.getElementById('reportCardContent');
+            if (navigator.share) {
+                try {
+                    const canvas = await html2canvas(card, { scale: 2, backgroundColor: null });
+                    canvas.toBlob(async (blob) => {
+                        const file = new File([blob], "my-journey.png", { type: "image/png" });
+                        await navigator.share({ title: 'My Travel Year', text: getShareText(), files: [file] });
+                    });
+                } catch (e) { console.error(e); downloadImage(); }
+            } else { downloadImage(); }
+        }
+
+        function downloadImage() {
+            const card = document.getElementById('reportCardContent');
+            html2canvas(card, { scale: 2, backgroundColor: null }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'my-journey-wrapped.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+        function shareWhatsApp() {
+            window.open(`https://wa.me/?text=${encodeURIComponent(getShareText())}`, '_blank');
+        }
+
+        function shareInstagram() {
+            alert("To share on Instagram:\n\n1. The image will download automatically.\n2. Open Instagram and post the downloaded image to your Story or Feed!");
+            downloadImage();
+        }
+
+        // Report
+        function generateReport() {
+            try {
+                if (storedData.length === 0) return alert("Add some trips first!");
+                const home = storedData.find(x => x.tag.toLowerCase().includes('home'));
+                let totalKm = 0, maxDist = 0, maxPlace = "None";
+                const sorted = [...storedData].sort((a,b) => new Date(a.date) - new Date(b.date));
+                for(let i=0; i<sorted.length-1; i++) {
+                    if(sorted[i].tag === sorted[i+1].tag || sorted[i] === home || sorted[i+1] === home) {
+                        totalKm += getDistance(sorted[i].lat, sorted[i].lng, sorted[i+1].lat, sorted[i+1].lng);
+                    }
+                }
+                if(home) { storedData.forEach(loc => { const dist = getDistance(home.lat, home.lng, loc.lat, loc.lng); if(dist > maxDist) { maxDist = dist; maxPlace = loc.name; } }); }
+
+                const countrySet = new Set();
+                storedData.forEach(x => {
+                    if(x.countryCode) countrySet.add(x.countryCode.toUpperCase());
+                    else if(x.countryName) { Object.keys(countryNamesMap).forEach(k => { if(countryNamesMap[k]===x.countryName) countrySet.add(k); }); }
+                });
+
+                const seasonCounts = { 'Winter':0, 'Spring':0, 'Summer':0, 'Autumn':0 };
+                storedData.forEach(x => {
+                    const m = new Date(x.date).getMonth();
+                    if(m>=2 && m<=4) seasonCounts['Spring']++; else if(m>=5 && m<=7) seasonCounts['Summer']++; else if(m>=8 && m<=10) seasonCounts['Autumn']++; else seasonCounts['Winter']++;
+                });
+                const topSeason = Object.keys(seasonCounts).reduce((a,b)=>seasonCounts[a]>seasonCounts[b]?a:b);
+
+                let persona = "The Weekender"; let personaClass = "persona-weekender";
+                if(countrySet.size > 5) { persona = "The Globetrotter"; personaClass = "persona-globetrotter"; }
+                else if(totalKm > 10000) { persona = "The Jetsetter"; personaClass = "persona-jetsetter"; }
+                else if(storedData.length > 10) { persona = "The Explorer"; personaClass = "persona-explorer"; }
+
+                const photos = storedData.filter(x => x.photo).slice(0, 5).map(x => `<img src="${x.photo}">`).join('');
+                const sortedCodes = Array.from(countrySet).sort();
+                const flagsHTML = sortedCodes.map(code => {
+                    const name = countryNamesMap[code] || code;
+                    return `<img src="https://flagcdn.com/w80/${code.toLowerCase()}.png" title="${name}" class="flag-icon" onerror="this.style.display='none'">`;
+                }).join('');
+
+                document.getElementById('repDist').innerText = Math.round(totalKm).toLocaleString();
+                document.getElementById('repCountries').innerText = countrySet.size;
+                document.getElementById('repCities').innerText = storedData.length;
+                document.getElementById('repSeason').innerText = topSeason;
+                
+                const personaEl = document.getElementById('repPersona');
+                personaEl.innerText = persona;
+                personaEl.className = "persona-badge " + personaClass; // Apply vibrant gradient class
+
+                document.getElementById('repPhotos').innerHTML = photos;
+                document.getElementById('repFlags').innerHTML = flagsHTML || '<span class="text-sm text-slate-400 italic">No country data found.</span>';
+                if(home) { document.getElementById('repFarDist').innerText = Math.round(maxDist).toLocaleString() + " km"; document.getElementById('repFarName').innerText = maxPlace; }
+                
+                document.getElementById('reportModal').classList.add('active');
+            } catch(e) { console.error(e); alert("Error generating report. Try resetting data."); }
+        }
+        function closeReport() { document.getElementById('reportModal').classList.remove('active'); }
+
+        // Core Logic
+        const dropZone = document.getElementById('dropZone'), photoFrame = document.getElementById('photoFrame'), previewImg = document.getElementById('previewImage'), filterToolbar = document.getElementById('filterToolbar');
+        const editDropZone = document.getElementById('editDropZone'), editPhotoFrame = document.getElementById('editPhotoFrame'), editPreviewImg = document.getElementById('editPreviewImage');
+        let state = { panning: false, pointX: 0, pointY: 0, startX: 0, startY: 0 }, transform = { x: 0, y: 0, scale: 1 };
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation()}, false));
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-over')); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => { dropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+        
+        function loadFile(file) { if (!file || !file.type.startsWith('image/')) return; const reader = new FileReader(); reader.onload = (e) => { previewImg.src = e.target.result; previewImg.onload = () => { dropZone.style.display = 'none'; photoFrame.style.display = 'block'; filterToolbar.classList.remove('hidden'); const scale = Math.max(photoFrame.offsetWidth/previewImg.naturalWidth, photoFrame.offsetHeight/previewImg.naturalHeight); transform.scale = scale; transform.x = (photoFrame.offsetWidth - previewImg.naturalWidth * scale) / 2; transform.y = (photoFrame.offsetHeight - previewImg.naturalHeight * scale) / 2; updateImageStyle(); }; }; reader.readAsDataURL(file); }
+        function applyFilter(filterString, btn) { currentFilter = filterString; previewImg.style.filter = filterString; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+        function updateImageStyle() { previewImg.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`; }
+        photoFrame.addEventListener('mousedown', (e) => { e.preventDefault(); state.panning = true; state.pointX = e.clientX; state.pointY = e.clientY; state.startX = transform.x; state.startY = transform.y; photoFrame.style.cursor = 'grabbing'; });
+        window.addEventListener('mousemove', (e) => { if (state.panning) { e.preventDefault(); transform.x = state.startX + (e.clientX - state.pointX); transform.y = state.startY + (e.clientY - state.pointY); updateImageStyle(); } });
+        window.addEventListener('mouseup', () => { state.panning = false; photoFrame.style.cursor = 'grab'; });
+        photoFrame.addEventListener('wheel', (e) => { e.preventDefault(); const xs=(e.offsetX-transform.x)/transform.scale, ys=(e.offsetY-transform.y)/transform.scale, delta=-e.deltaY, factor=delta>0?1.1:0.9; let newScale=transform.scale*factor; if(newScale<0.1)newScale=0.1;if(newScale>10)newScale=10; transform.x-=xs*(newScale-transform.scale); transform.y-=ys*(newScale-transform.scale); transform.scale=newScale; updateImageStyle(); });
+        function getCroppedImage() { if (photoFrame.style.display === 'none' || previewImg.src === "") return null; const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d'), frameRect = photoFrame.getBoundingClientRect(); canvas.width = frameRect.width; canvas.height = frameRect.height; ctx.filter = currentFilter; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); const imgRect = previewImg.getBoundingClientRect(); ctx.drawImage(previewImg, imgRect.left-frameRect.left, imgRect.top-frameRect.top, imgRect.width, imgRect.height); return canvas.toDataURL('image/jpeg', 0.8); }
+
+        // Edit
+        function loadEditFile(file) { if (!file || !file.type.startsWith('image/')) return; const reader = new FileReader(); reader.onload = (e) => { editPreviewImg.src = e.target.result; editPreviewImg.onload = () => { editDropZone.style.display = 'none'; editPhotoFrame.style.display = 'block'; editPhotoChanged = true; const scale = Math.max(editPhotoFrame.offsetWidth/editPreviewImg.naturalWidth, editPhotoFrame.offsetHeight/editPreviewImg.naturalHeight); editTransform = { x: (editPhotoFrame.offsetWidth - editPreviewImg.naturalWidth * scale) / 2, y: (editPhotoFrame.offsetHeight - editPreviewImg.naturalHeight * scale) / 2, scale: scale }; updateEditImageStyle(); }; }; reader.readAsDataURL(file); }
+        function updateEditImageStyle() { editPreviewImg.style.transform = `translate(${editTransform.x}px, ${editTransform.y}px) scale(${editTransform.scale})`; }
+        editPhotoFrame.addEventListener('mousedown', (e) => { e.preventDefault(); editState.panning = true; editState.pointX = e.clientX; editState.pointY = e.clientY; editState.startX = editTransform.x; editState.startY = editTransform.y; editPhotoFrame.style.cursor = 'grabbing'; });
+        window.addEventListener('mousemove', (e) => { if (editState.panning) { e.preventDefault(); editTransform.x = editState.startX + (e.clientX - editState.pointX); editTransform.y = editState.startY + (e.clientY - editState.pointY); updateEditImageStyle(); } });
+        window.addEventListener('mouseup', () => { editState.panning = false; editPhotoFrame.style.cursor = 'grab'; });
+        editPhotoFrame.addEventListener('wheel', (e) => { e.preventDefault(); const xs=(e.offsetX-editTransform.x)/editTransform.scale, ys=(e.offsetY-editTransform.y)/editTransform.scale, delta=-e.deltaY, factor=delta>0?1.1:0.9; let newScale=editTransform.scale*factor; if(newScale<0.1)newScale=0.1;if(newScale>10)newScale=10; editTransform.x-=xs*(newScale-editTransform.scale); editTransform.y-=ys*(newScale-editTransform.scale); editTransform.scale=newScale; updateEditImageStyle(); });
+        function getEditCroppedImage() { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const frameRect = editPhotoFrame.getBoundingClientRect(); canvas.width = frameRect.width; canvas.height = frameRect.height; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); const imgRect = editPreviewImg.getBoundingClientRect(); ctx.drawImage(editPreviewImg, imgRect.left-frameRect.left, imgRect.top-frameRect.top, imgRect.width, imgRect.height); return canvas.toDataURL('image/jpeg', 0.8); }
+        function openEditModal(id, e) { e.stopPropagation(); const entry = storedData.find(x => x.id === id); if (!entry) return; editingId = id; editPhotoChanged = false; document.getElementById('editName').value = entry.name; document.getElementById('editDate').value = entry.date; document.getElementById('editTag').value = entry.tag; editDropZone.style.display = 'flex'; editPhotoFrame.style.display = 'none'; editPreviewImg.src = ""; document.getElementById('editModal').style.display = 'flex'; }
+        function closeEditModal() { document.getElementById('editModal').style.display = 'none'; editingId = null; }
+        function saveEdit() { if (!editingId) return; const idx = storedData.findIndex(x => x.id === editingId); if (idx !== -1) { storedData[idx].name = document.getElementById('editName').value; storedData[idx].date = document.getElementById('editDate').value; storedData[idx].tag = document.getElementById('editTag').value || "General"; if(editPhotoChanged) { storedData[idx].photo = getEditCroppedImage(); } saveAndRender(); closeEditModal(); } }
+
+        // Standard
+        function handleInput(query) { clearTimeout(searchTimeout); if(query.length<3){document.getElementById('searchResults').classList.add('hidden');return;} document.getElementById('searchLoader').style.display='block'; searchTimeout=setTimeout(()=>fetchSuggestions(query),400); }
+        async function fetchSuggestions(query) { try { const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`); const results=await res.json(); const list=document.getElementById('searchResults'); list.innerHTML=""; document.getElementById('searchLoader').style.display='none'; if(results.length>0){ list.classList.remove('hidden'); results.forEach(place=>{ const li=document.createElement('li'); li.className="px-4 py-2 hover:bg-slate-100 cursor-pointer text-sm border-b border-slate-100 truncate text-slate-700"; li.innerHTML=`<strong>${place.display_name.split(',')[0]}</strong> <span class="text-xs text-slate-400">${place.display_name}</span>`; li.onclick=()=>selectSuggestion(place); list.appendChild(li); }); } else list.classList.add('hidden'); } catch(e){console.error(e);} }
+        function selectSuggestion(place) { 
+            document.getElementById('searchResults').classList.add('hidden'); 
+            document.getElementById('searchInput').value = place.display_name.split(',')[0]; 
+            let cc = null; if(place.address) cc = place.address.country_code || null; if (cc) cc = cc.toUpperCase();
+            const countryName = place.address && place.address.country ? place.address.country : "Unknown";
+            const statusText = document.getElementById('detectedCountryName');
+            document.getElementById('countryStatus').classList.remove('hidden');
+            statusText.innerText = cc ? `${countryName} (${cc})` : "No Country Detected";
+            currentSelection = { lat: parseFloat(place.lat), lng: parseFloat(place.lon), name: document.getElementById('searchInput').value, countryCode: cc, countryName: countryName }; 
+            if(currentSearchMarker) map.removeLayer(currentSearchMarker); 
+            currentSearchMarker = L.marker([currentSelection.lat, currentSelection.lng]).addTo(map).bindPopup("Location Selected").openPopup(); 
+            map.flyTo([currentSelection.lat, currentSelection.lng], 12); 
+        }
+        function addEntry() { if (!currentSelection) return alert("Search location first!"); const newEntry = { id: Date.now(), name: document.getElementById('searchInput').value, date: document.getElementById('inputDate').value || new Date().toISOString().split('T')[0], tag: document.getElementById('inputTag').value || "General", lat: currentSelection.lat, lng: currentSelection.lng, photo: getCroppedImage(), countryCode: currentSelection.countryCode, countryName: currentSelection.countryName }; storedData.push(newEntry); saveAndRender(); resetForm(); }
+        function resetForm() { document.getElementById('searchInput').value=""; document.getElementById('countryStatus').classList.add('hidden'); dropZone.style.display='flex'; photoFrame.style.display='none'; filterToolbar.classList.add('hidden'); previewImg.src=""; previewImg.style.filter = 'none'; currentFilter = 'none'; if(currentSearchMarker) map.removeLayer(currentSearchMarker); currentSelection=null; }
+        
+        function saveAndRender() {
+            localStorage.setItem('travelLogV36', JSON.stringify(storedData));
+            markersGroup.clearLayers(); polylineLayer.clearLayers(); document.getElementById('locationList').innerHTML="";
+            
+            visitedCountryCodes.clear(); visitedCountryNames.clear();
+            storedData.forEach(entry => { if(entry.countryCode) visitedCountryCodes.add(entry.countryCode); if(entry.countryName) visitedCountryNames.add(entry.countryName); });
+            if(countriesLayer) countriesLayer.setStyle(styleCountry);
+
+            const homeEntries = storedData.filter(i => i.tag.toLowerCase() === 'home');
+            const homeBase = homeEntries.length > 0 ? homeEntries[0] : null;
+            const groups = {}; storedData.forEach(i=>{ if(!groups[i.tag]) groups[i.tag]=[]; groups[i.tag].push(i); });
+            
+            Object.keys(groups).forEach(tagName => {
+                if(tagName.toLowerCase() === 'home') return;
+                const group = groups[tagName].sort((a,b)=>new Date(a.date)-new Date(b.date));
+                const style = getTagStyle(tagName);
+                const color = style.text;
+                if(group.length>1) { for(let i=0;i<group.length-1;i++) { const curve = getBezierCurve(group[i].lat, group[i].lng, group[i+1].lat, group[i+1].lng); L.polyline(curve, { color: 'white', weight: 6, opacity: 0.8 }).addTo(polylineLayer); L.polyline(curve, { color: color, weight: 3, opacity: 1 }).addTo(polylineLayer); }}
+                if(homeBase && group.length > 0) { const firstStop = group[0]; const homeCurve = getBezierCurve(homeBase.lat, homeBase.lng, firstStop.lat, firstStop.lng); L.polyline(homeCurve, { color: 'white', weight: 5, opacity: 0.8 }).addTo(polylineLayer); L.polyline(homeCurve, { color: color, dashArray: '10, 20', weight: 2, opacity: 1, className: 'flight-path' }).addTo(polylineLayer); }
+            });
+
+            [...storedData].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(entry => {
+                const style = getTagStyle(entry.tag);
+                const popupContent = `
+                    <div style="position:relative; width:300px; font-family:'Plus Jakarta Sans',sans-serif;">
+                        <div style="width:100%; height:180px; overflow:hidden; background:#eee;">${entry.photo ? `<img src="${entry.photo}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#ccc;"><i class="fa-solid fa-image text-4xl"></i></div>`}</div>
+                        <div style="position:absolute; top:10px; right:10px; background:${style.bg}; color:${style.text}; padding:6px 12px; border-radius:100px; font-size:10px; font-weight:800; box-shadow:0 4px 12px rgba(0,0,0,0.15); text-transform:uppercase;">${entry.tag}</div>
+                        <div style="padding:15px; background:white;"><h3 style="margin:0; font-size:18px; font-weight:800; color:#1e293b;">${entry.name}</h3><div style="display:flex; justify-content:between; align-items:center; margin-top:5px; color:#64748b; font-size:12px; font-weight:600;"><span><i class="fa-regular fa-calendar"></i> ${entry.date}</span><button onclick="map.flyTo([${entry.lat}, ${entry.lng}], 16)" style="color:#6366f1; cursor:pointer;">Zoom In</button></div></div>
+                    </div>`;
+                const customIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color:${style.text}; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.2);"></div>` });
+                const marker = L.marker([entry.lat, entry.lng], {icon: customIcon}).addTo(markersGroup).bindPopup(popupContent, { maxWidth: 300, minWidth: 300, closeButton: false });
+                const card = document.createElement('div'); card.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:border-indigo-100 hover:shadow-md transition-all cursor-pointer group relative"; 
+                card.innerHTML = `
+                    <h4 class="font-bold text-slate-800 pr-12 truncate">${entry.name}</h4>
+                    <div class="text-xs mt-2 flex items-center">
+                        <span class="text-slate-500 font-medium mr-2"><i class="fa-regular fa-calendar"></i> ${entry.date}</span> 
+                        <span class="ml-auto font-bold text-[10px] px-2 py-1 rounded-md uppercase tracking-wide" style="background:${style.bg}; color:${style.text}">${entry.tag}</span>
+                    </div>
+                    ${entry.photo ? `<img src="${entry.photo}" class="thumb-img">` : ''}
+                    <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="openEditModal(${entry.id}, event)" class="bg-slate-50 hover:bg-indigo-500 hover:text-white p-1.5 rounded-lg w-8 h-8 flex items-center justify-center transition-colors shadow-sm text-slate-400"><i class="fa-solid fa-pen text-xs"></i></button><button onclick="deleteEntry(${entry.id}, event)" class="bg-slate-50 hover:bg-red-500 hover:text-white p-1.5 rounded-lg w-8 h-8 flex items-center justify-center transition-colors shadow-sm text-slate-400"><i class="fa-solid fa-trash text-xs"></i></button></div>`;
+                card.onclick = () => { map.flyTo([entry.lat, entry.lng], 14); marker.openPopup(); };
+                document.getElementById('locationList').appendChild(card);
+            });
+            document.getElementById('statCount').innerText = `${storedData.length} Memories`;
+        }
+
+        // Utils
+        function deg2rad(deg) { return deg * (Math.PI/180); }
+        function getDistance(lat1, lon1, lat2, lon2) { const R = 6371; const dLat = deg2rad(lat2-lat1), dLon = deg2rad(lon2-lon1); const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); }
+        function stringToColor(str) { let hash = 0; for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash); const c = (hash & 0x00FFFFFF).toString(16).toUpperCase(); return '#' + "00000".substring(0, 6 - c.length) + c; }
+        function getBezierCurve(fromLat, fromLng, toLat, toLng) { const points=[], midLat=(fromLat+toLat)/2, midLng=(fromLng+toLng)/2, dist=Math.sqrt(Math.pow(toLat-fromLat,2)+Math.pow(toLng-fromLng,2)); const controlLat = midLat + (dist * 0.2), controlLng = midLng + (dist * 0.1); for (let t=0; t<=1; t+=0.02) points.push([(1-t)*(1-t)*fromLat+2*(1-t)*t*controlLat+t*t*toLat, (1-t)*(1-t)*fromLng+2*(1-t)*t*controlLng+t*t*toLng]); return points; }
+        function exportData() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storedData)); a.download = "my_journey_v36.json"; document.body.appendChild(a); a.click(); a.remove(); }
+        function importData(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (e) => { if(confirm("Overwrite data?")) { storedData = JSON.parse(e.target.result); saveAndRender(); } }; reader.readAsText(file); }
+        function deleteEntry(id, e) { e.stopPropagation(); if(confirm("Delete?")) { storedData = storedData.filter(x => x.id !== id); saveAndRender(); } }
+        function clearAll() { if(confirm("Clear all?")) { storedData=[]; saveAndRender(); } }
+        map.on('click', e => { currentSelection = { lat: e.latlng.lat, lng: e.latlng.lng, name: "Pinned Location", countryCode: null }; if(currentSearchMarker) map.removeLayer(currentSearchMarker); currentSearchMarker = L.marker(e.latlng).addTo(map); document.getElementById('searchInput').value = "Pinned Location"; });
+        document.addEventListener('click', (e) => { if (!e.target.closest('#searchInput') && !e.target.closest('#searchResults')) document.getElementById('searchResults').classList.add('hidden'); });
+        
+        saveAndRender();
+    </script>
+</body>
+</html>
