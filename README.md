@@ -45,7 +45,7 @@ Since MonVoy is a static web application, you don't need a backend server or com
 ### Option 1: Quick Run
 1.  Clone the repository:
     ```bash
-    git clone [https://github.com/yourusername/monvoy.git](https://github.com/yourusername/monvoy.git)
+    git clone [https://github.com/Hummels0211/MonVoy.git](https://github.com/Hummels0211/MonVoy.git)
     ```
 2.  Simply open `index.html` in any modern web browser (Chrome, Firefox, Safari).
 
