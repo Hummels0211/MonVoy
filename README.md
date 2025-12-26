@@ -1,7 +1,7 @@
 # ✈️ MonVoy - My Personal Travel Log
 
 <div align="Left">
-  <img src="https://github.com/Hummels0211/MonVoy/blob/main/Images/MonVoy_logo_2.png" alt="MonVoy Logo" width="400"/>
+  <img src="https://github.com/Hummels0211/MonVoy/blob/main/Images/MonVoy_logo_3.png" alt="MonVoy Logo" width="400"/>
   <br>
   <br>
 
