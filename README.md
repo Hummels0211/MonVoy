@@ -1,7 +1,4 @@
-# MonVoy
-My Personal Travel Log
-
-# ✈️ MonVoy - Personal Travel Log
+# ✈️ MonVoy - My Personal Travel Log
 
 <div align="Left">
   <img src="https://github.com/Hummels0211/MonVoy/blob/main/Images/MonVoy_logo_2.png" alt="MonVoy Logo" width="400"/>
@@ -19,7 +16,7 @@ My Personal Travel Log
 
 ## ✨ Features
 
-* **🗺️ Interactive World Map:** Visualize your journeys with flight paths connected to your home base.
+* **🗺️ Interactive World Map:** Visualise your journeys with flight paths connected to your home base.
 * **📍 Smart Location Search:** Auto-detects country codes and coordinates for cities worldwide.
 * **🎨 Dynamic Themes:** Switch between Modern, Clean (Positron), Classic (OSM), and Dark Mode.
 * **📸 Built-in Photo Studio:** Upload, crop, and apply filters (Vivid, Vintage, B&W) to your travel memories directly in the app.
