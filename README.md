@@ -4,7 +4,7 @@ My Personal Travel Log
 # ✈️ MonVoy - Personal Travel Log
 
 <div align="center">
-  <img src="path/to/your/logo.png" alt="MonVoy Logo" width="200"/>
+  <img src="[path/to/your/logo.png](https://github.com/Hummels0211/MonVoy/blob/main/Images/MonVoy_logo.png.png)" alt="MonVoy Logo" width="200"/>
   <br>
   <br>
 
